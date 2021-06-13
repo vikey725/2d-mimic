@@ -44,7 +44,7 @@ sudo modprobe v4l2loopback video_nr=7 card_label="Also-Me" exclusive_caps=1
 ```
 
 ### How to use (with remote GPU in google colab)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github.com/gok03/2d-mimic/blob/main/Also_Me_collab_server.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/vikey725/2d-mimic/blob/main/Also_Me_collab_server.ipynb)
 ```
 1. Open the code in colab using above colab badge
 2. Run all cells in colab and the command to run in local system will be ouput there.
