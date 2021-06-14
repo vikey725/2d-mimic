@@ -8,8 +8,11 @@ The repo contains source code for also-me project. Also-me creates virtual avata
 git clone https://github.com/vikey725/2d-mimic.git
 git clone https://github.com/facebookresearch/detectron2.git
 
-# Create conda and install dependencies
+# Create conda and activate
 conda create -n alsome python==3.7
+conda activate alsome
+
+# Install dependencies
 pip install -r 2d-mimic/requirements.txt
 pip install -e detectron2
 pip install 'git+https://github.com/facebookresearch/fvcore.git'
