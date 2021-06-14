@@ -154,7 +154,7 @@ if __name__ == '__main__':
     in_addr = ngrok.connect(in_port, "tcp").public_url
     out_addr = ngrok.connect(out_port, "tcp").public_url
     print("---------------------------")
-    print("python client.py -in "+in_addr+" -out "+out_addr)
+    print("python -m scripts.remote_local -in "+in_addr+" -out "+out_addr)
     print("---------------------------")
     background_img = cv2.imread(f"backgrounds/bg1.jpg")
     background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
