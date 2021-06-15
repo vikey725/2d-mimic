@@ -46,7 +46,7 @@ def predict(frame, socket, cv2):
 
 def run_webcam(args):
     if (args.get('remote_server', 0) == 0):
-        camera = pyfakewebcam.FakeWebcam('/dev/video9', 640, 480) 
+        camera = pyfakewebcam.FakeWebcam('/dev/video7', 640, 480) 
         vis_type = args.get('vis_type', None)
         out_type = args.get('out_type', None)
         background_img = cv2.imread(f"backgrounds/bg{args['background_image']}.jpg")
@@ -80,7 +80,7 @@ def run_webcam(args):
         socket = context.socket(zmq.PAIR)
         socket.connect(args.get('remote_server_ip'))
         stream = WebcamVideoStream(src=0).start()
-        camera = pyfakewebcam.FakeWebcam('/dev/video9', 640, 480)
+        camera = pyfakewebcam.FakeWebcam('/dev/video7', 640, 480)
         camera_started_flag = True 
         try:
             while True:
