@@ -70,7 +70,7 @@ class PredictorRemote:
         l = size_of_fram[0]
         w = size_of_fram[1]
         print(l,w)
-        camera = pyfakewebcam.FakeWebcam('/dev/video9', l, w) 
+        camera = pyfakewebcam.FakeWebcam('/dev/video7', l, w) 
         time.sleep(1.0)
         while True:
             try:
