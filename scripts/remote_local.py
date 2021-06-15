@@ -1,4 +1,4 @@
-from networking import SerializingContext, check_connection
+from scripts.networking import SerializingContext, check_connection
 
 import multiprocessing as mp
 import queue
