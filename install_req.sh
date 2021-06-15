@@ -7,8 +7,8 @@ git clone https://github.com/vikey725/2d-mimic.git
 git clone https://github.com/facebookresearch/detectron2.git
 
 # Create conda and activate
-conda create -n alsome python==3.7
-conda activate alsome
+conda create -n alsome1 python==3.7
+conda activate alsome1
 
 # Install dependencies
 pip install -r 2d-mimic/requirements.txt
