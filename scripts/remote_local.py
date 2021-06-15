@@ -8,8 +8,10 @@ import numpy as np
 import zmq
 import msgpack
 import msgpack_numpy as m
+import pyfakewebcam
 import time
 m.patch()
+
 from imutils.video import WebcamVideoStream
 from simplejpeg import decode_jpeg, encode_jpeg
 PUT_TIMEOUT = 0.1 # s
@@ -62,9 +64,13 @@ class PredictorRemote:
 
     def startprocess(self):
         stream = WebcamVideoStream(src=0).start()
-        size_of_fram = (400, 400)
+        frame = stream.read()
+        size_of_fram = (frame.shape[1], frame.shape[0])
+        #size_of_fram = (int(frame.shape[1] / 1), int(frame.shape[0] / 1))
         l = size_of_fram[0]
         w = size_of_fram[1]
+        print(l,w)
+        camera = pyfakewebcam.FakeWebcam('/dev/video9', l, w) 
         time.sleep(1.0)
         while True:
             try:
@@ -86,6 +92,7 @@ class PredictorRemote:
                 #frame = cv2.resize(frame, (500, 500))
                 cv2.imshow('image',frame)
                 cv2.waitKey(1)
+                camera.schedule_frame(frame)
                 time.sleep(0.2)
             except KeyboardInterrupt:
                 self.stop()
