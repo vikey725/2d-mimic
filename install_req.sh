@@ -2,8 +2,8 @@
 git clone https://github.com/facebookresearch/detectron2.git
 
 # Create conda and activate
-conda create -n alsome python==3.7 -y
-conda activate alsome
+conda create -n alsome1 python==3.7 -y
+conda activate alsome1
 
 # Install dependencies
 pip install -r requirements.txt
