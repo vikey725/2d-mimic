@@ -21,7 +21,7 @@ import torch
 PUT_TIMEOUT = 1 # s
 GET_TIMEOUT = 1 # s
 RECV_TIMEOUT = 1000 # ms
-QUEUE_SIZE = 100
+QUEUE_SIZE = 10
 
 
 
@@ -69,6 +69,7 @@ class PredictorWorker():
                     continue
 
                 try:
+                    frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB", fastdct=True)
                     recv_queue.put(frame)
                 except queue.Full:
                     print('recv_queue full')
@@ -81,28 +82,47 @@ class PredictorWorker():
 
     @staticmethod
     def predictor_worker(recv_queue, send_queue, worker_alive, background, predictor):
-        
+        BATCH_SIZE = 3
+        h = 400
+        w = 400
         try:
             while worker_alive.value:
-
-                try:
-                    frame = recv_queue.get(timeout=GET_TIMEOUT)
-                except queue.Empty:
+              s1 = time.time()
+              try:
+                  if recv_queue.qsize() >= BATCH_SIZE:
+                    inputs_tensors = []
+                    inputs_frames = []
+                    for idx in range(BATCH_SIZE):
+                      frame = recv_queue.get()
+                      inputs_tensors.append({
+                          "image": torch.as_tensor(frame.astype("float32").transpose(2, 0, 1)),
+                          "height": h,
+                          "width": w
+                      })
+                      inputs_frames.append(frame)
+                    print("got images ---------------------")
+                  else:
                     continue
-
-                frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB", fastdct=True)
-                
-                ### Predictor process ##
-                background_img = cv2.resize(background, (frame.shape[1], frame.shape[0]), interpolation = cv2.INTER_AREA)
-                frame = predictor.dp_predict(frame, background_img)
-                ### ---------------------##
-
+              except queue.Empty:
+                  print("queue empty")
+                  continue
+              print("in process ", time.time() - s1)
+              s2 = time.time()
+              ### Predictor process ##
+              background_img = cv2.resize(background, (h, w), interpolation = cv2.INTER_AREA)
+              frames = predictor.predict_batch(inputs_tensors, inputs_frames, background_img)
+              ### ---------------------##
+              print("predict procwhileess ", time.time() - s2)
+              s3 = time.time()
+              for frame in frames:
                 frame = msgpack.packb(encode_jpeg(frame, colorspace = "RGB", fastdct=True))
                 try:
                     send_queue.put(frame)
                 except queue.Full:
                     print("send_queue full")
                     pass
+              print("out process ", time.time() - s3, " ---------------------------")
+              time.sleep(0.1)
 
         except KeyboardInterrupt:
             print("predictor_worker: user interrupt")
