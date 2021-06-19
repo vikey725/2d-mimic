@@ -71,7 +71,7 @@ def run_webcam(args):
 
                 if camera_started_flag:
                     print("Camera started ...")
-                   camera_started_flag = False
+                    camera_started_flag = False
         except KeyboardInterrupt:
             context.destroy()
                 
