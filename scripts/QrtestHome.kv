@@ -1,0 +1,94 @@
+<QrtestHome>:
+
+    BoxLayout:
+        orientation: "vertical"
+        id: uibox
+
+        Label:
+            id: label_about
+            height: 20
+            size_hint_y: None
+            text: 'Also Me Application'
+
+        BoxLayout:
+            orientation: "horizontal"
+            height: 200
+            size_hint_y: None
+
+            OriginalCamera:
+                id: orig_camera
+
+            KivyCamera:
+                id: qrcam
+
+
+            BoxLayout:
+                orientation: "vertical"
+                height: 200
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    Label:
+                        height: 20
+                        size_hint_y: None
+                        text: "VisType"
+
+                    Spinner:
+                        id: spinner_vistype
+                        size_hint: None, None
+                        size: 100, 44
+                        text: 'Vistype-0'
+                        values: 'Vistype-0', 'Vistype-1', 'Vistype-2', 'Vistype-3'
+                        #on-text: app.show_selected_value_custom(control="vis", text=self.text)
+                        #on_text:
+                        #    print("The spinner woow {} has text {}".format(self, self.text))
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    Label:
+                        height: 20
+                        size_hint_y: None
+                        text: "OutType"
+
+                    Spinner:
+                        id: spinner_outtype
+                        size_hint: None, None
+                        size: 100, 44
+                        text: 'Outtype-0'
+                        values: '0', '1'
+                        #on_text:
+                        #    print("The spinner {} has text {}".format(self, self.text))
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    Label:
+                        height: 20
+                        size_hint_y: None
+                        text: "BackImage"
+
+                    Spinner:
+                        id: spinner_backimage
+                        size_hint: None, None
+                        size: 100, 44
+                        text: 'BackImage-0'
+                        values: '0', '1'
+                        #on_text:
+                        #    print("The spinner {} has text {}".format(self, self.text))
+
+        BoxLayout:
+            orientation: "horizontal"
+            height: 20
+            size_hint_y: None
+
+            Button:
+                id: butt_start
+                size_hint: 0.5,1
+                text: "start"
+                on_press: root.dostart()
+
+            Button:
+                id: butt_exit
+                text: "quit"
+                size_hint: 0.5,1
+                on_press: root.doexit()
+

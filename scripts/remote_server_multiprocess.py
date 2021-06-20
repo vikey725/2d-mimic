@@ -11,29 +11,27 @@ import queue
 import multiprocessing as mp
 import traceback
 import time
-import argparse
 import pyfakewebcam
 from configs.color_config import ColorConfig
 from configs.model_config import detector, landmark_predictor
 from code.predictor import Predictor
 import torch
+import os
 
 PUT_TIMEOUT = 1 # s
 GET_TIMEOUT = 1 # s
 RECV_TIMEOUT = 1000 # ms
-QUEUE_SIZE = 10
-
-
+QUEUE_SIZE = 100
 
 class PredictorWorker():
-    def __init__(self, in_port=None, out_port=None, background = None, predictor = None):
+    def __init__(self, in_port=None, out_port=None):
         self.recv_queue = mp.Queue(QUEUE_SIZE)
         self.send_queue = mp.Queue(QUEUE_SIZE)
 
         self.worker_alive = mp.Value('i', 0)
 
         self.recv_process = mp.Process(target=self.recv_worker, args=(in_port, self.recv_queue, self.worker_alive))
-        self.predictor_process = mp.Process(target=self.predictor_worker, args=(self.recv_queue, self.send_queue, self.worker_alive, background, predictor))
+        self.predictor_process = mp.Process(target=self.predictor_worker, args=(self.recv_queue, self.send_queue, self.worker_alive))
         self.send_process = mp.Process(target=self.send_worker, args=(out_port, self.send_queue, self.worker_alive))
     
     def run(self):
@@ -58,21 +56,21 @@ class PredictorWorker():
         socket.bind(f"tcp://*:{port}")
         socket.RCVTIMEO = RECV_TIMEOUT
 
-
         try:
             while worker_alive.value:
 
                 try:
-                    _,frame = socket.recv_data()
+                    msg = socket.recv_data()
+                    print("data received")
                 except zmq.error.Again:
-                    print("recv timeout")
+                    #print("recv timeout")
                     continue
 
                 try:
-                    frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB", fastdct=True)
-                    recv_queue.put(frame)
+                    recv_queue.put(msg)
                 except queue.Full:
-                    print('recv_queue full')
+                    pass
+                    #print('recv_queue full')
 
         except KeyboardInterrupt:
             print("recv_worker: user interrupt")
@@ -81,48 +79,69 @@ class PredictorWorker():
         print("recv_worker exit")
 
     @staticmethod
-    def predictor_worker(recv_queue, send_queue, worker_alive, background, predictor):
+    def predictor_worker(recv_queue, send_queue, worker_alive):
         BATCH_SIZE = 3
+        vis_type = 0
+        out_type = 0
+        background = 0
         h = 400
         w = 400
+
         try:
+            background_img = cv2.imread("backgrounds/bg"+str(background)+".jpg")
+            background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
+            background_img = cv2.resize(background_img, (h,w), interpolation = cv2.INTER_AREA)
+
+            predictor = Predictor(visualizer_type=vis_type, output_type=out_type)
+
             while worker_alive.value:
-              s1 = time.time()
-              try:
-                  if recv_queue.qsize() >= BATCH_SIZE:
-                    inputs_tensors = []
-                    inputs_frames = []
-                    for idx in range(BATCH_SIZE):
-                      frame = recv_queue.get()
-                      inputs_tensors.append({
-                          "image": torch.as_tensor(frame.astype("float32").transpose(2, 0, 1)),
-                          "height": h,
-                          "width": w
-                      })
-                      inputs_frames.append(frame)
-                    print("got images ---------------------")
-                  else:
-                    continue
-              except queue.Empty:
-                  print("queue empty")
-                  continue
-              print("in process ", time.time() - s1)
-              s2 = time.time()
-              ### Predictor process ##
-              background_img = cv2.resize(background, (h, w), interpolation = cv2.INTER_AREA)
-              frames = predictor.predict_batch(inputs_tensors, inputs_frames, background_img)
-              ### ---------------------##
-              print("predict procwhileess ", time.time() - s2)
-              s3 = time.time()
-              for frame in frames:
-                frame = msgpack.packb(encode_jpeg(frame, colorspace = "RGB", fastdct=True))
+
                 try:
-                    send_queue.put(frame)
-                except queue.Full:
-                    print("send_queue full")
-                    pass
-              print("out process ", time.time() - s3, " ---------------------------")
-              time.sleep(0.1)
+                    if recv_queue.qsize() >= BATCH_SIZE:
+                        infos = []
+                        inputs_tensors = []
+                        inputs_frames = []
+                        info = None
+                        for idx in range(BATCH_SIZE):
+                          info, frame = recv_queue.get()
+                          frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB", fastdct=True)
+                          infos.append(info)
+                          inputs_tensors.append({
+                              "image": torch.as_tensor(frame.astype("float32").transpose(2, 0, 1)),
+                              "height": h,
+                              "width": w
+                          })
+                          inputs_frames.append(frame)
+                    else:
+                        continue
+                except queue.Empty:
+                    continue
+
+                s = time.time()
+                ### Predictor process ##
+
+                if info["vis_type"] != vis_type or info["out_type"] != out_type:
+                    predictor = Predictor(visualizer_type=info["vis_type"], output_type=info["out_type"])
+                if info["background"] != background: 
+                    print(info["background"])
+                    background_img = cv2.imread("backgrounds/bg"+str(info["background"])+".jpg")
+                    background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
+                    background_img = cv2.resize(background_img, (h,w), interpolation = cv2.INTER_AREA)
+                
+
+
+                frames = predictor.predict_batch(inputs_tensors, inputs_frames, background_img)
+                ### ---------------------##
+
+                for idx in range(len(frames)):
+                    frame = msgpack.packb(encode_jpeg(frames[idx], colorspace = "RGB", fastdct=True))
+                    info = infos[idx]
+                    info["pred_time"] = time.time() - s
+                    try:
+                        send_queue.put((info, frame))
+                    except queue.Full:
+                        #print("send_queue full")
+                        pass
 
         except KeyboardInterrupt:
             print("predictor_worker: user interrupt")
@@ -144,12 +163,12 @@ class PredictorWorker():
             while worker_alive.value:
 
                 try:
-                    frame = send_queue.get(timeout=GET_TIMEOUT)
+                    msg = send_queue.get(timeout=GET_TIMEOUT)
                 except queue.Empty:
-                    print("send queue empty")
+                    #print("send queue empty")
                     continue
 
-                socket.send_data(msg = "image", data = frame)
+                socket.send_data(*msg)
 
         except KeyboardInterrupt:
             print("predictor_worker: user interrupt")
@@ -159,26 +178,13 @@ class PredictorWorker():
 
 if __name__ == '__main__':
     torch.multiprocessing.set_start_method('spawn')
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-v", "--vis-type", type=int, default=0,
-                    help="Visualizer type (0, 1, 2, 3")
-
-    ap.add_argument("-o", "--out-type", type=int, default=0,
-                    help="Visualizer type (0, 1")
-    args = vars(ap.parse_args())
-    vis_type = args.get('vis_type', None)
-    out_type = args.get('out_type', None)
     in_port = 5555
     out_port = 5556
-    ngrok.set_auth_token("1t4SKLGLQrQWbMnhgqeLMDoZWO5_81uYnSFsT87KsBm4A6zGZ")
+    ngrok.set_auth_token(os.environ['NGROK_AUTH_TOKEN'])
     in_addr = ngrok.connect(in_port, "tcp").public_url
     out_addr = ngrok.connect(out_port, "tcp").public_url
     print("---------------------------")
     print("python -m scripts.remote_local -in "+in_addr+" -out "+out_addr)
     print("---------------------------")
-    background_img = cv2.imread(f"backgrounds/bg1.jpg")
-    background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
-    dp_predictor = Predictor(visualizer_type=vis_type, output_type=out_type)
-    worker = PredictorWorker(in_port=in_port, out_port=out_port,
-        background = background_img, predictor = dp_predictor)
+    worker = PredictorWorker(in_port=in_port, out_port=out_port)
     worker.run()
