@@ -32,7 +32,7 @@ GET_TIMEOUT = 0.1 # s
 RECV_TIMEOUT = 1000 # ms
 QUEUE_SIZE = 1
 default_cam_capture = None
-DEFAULT_CAM_ID = 0
+DEFAULT_CAM_ID = 2
 qrcam_vis_type = 0
 qrcam_out_type = 0
 qrcam_background = 0
@@ -84,9 +84,7 @@ class KivyCamera(Image):
 
         self.worker_alive = mp.Value('i', 0)
 
-        self.h = 640
-        self.w = 480
-        self.new_camera = pyfakewebcam.FakeWebcam('/dev/video7',self.h,self.w)
+        self.new_camera = pyfakewebcam.FakeWebcam('/dev/video7',640,480)
 
         self.send_process = mp.Process(
             target=self.send_worker,
@@ -98,6 +96,10 @@ class KivyCamera(Image):
         )
 
         self._i_msg = -1
+        self.sr = cv2.dnn_superres.DnnSuperResImpl_create()
+        self.sr.readModel("checkpoints/ESPCN_x4.pb")
+        self.sr.setModel("espcn",4)
+
 
 
     def start(self, capture, fps=30):
@@ -122,8 +124,8 @@ class KivyCamera(Image):
             # size_of_fram = (400, 400)
             # l = size_of_fram[0]
             # w = size_of_fram[1]
-            h = self.h
-            w = self.w
+            h = 400
+            w = 400
             frame_proportion = 0.9
             frame_offset_x = 0
             frame_offset_y = 0
@@ -137,7 +139,7 @@ class KivyCamera(Image):
                 frame = cv2.resize(frame, (h, w))
                 assert isinstance(frame, np.ndarray), 'Expected image'
                 #_, frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-                frame = msgpack.packb(encode_jpeg(frame, colorspace="RGB", fastdct=True))
+                frame = msgpack.packb(encode_jpeg(frame, colorspace="RGB"))
                 #print((frame.shape[1], frame.shape[0]))
                 global qrcam_vis_type
                 global qrcam_out_type
@@ -160,10 +162,10 @@ class KivyCamera(Image):
                     info, frame = self.recv_queue.get(timeout=GET_TIMEOUT)
                     #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
                     frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB", fastdct=True)
-                    frame = cv2.resize(frame, (h, w))
+                    frame = cv2.resize(frame, (640, 480))
                     info["total_time"] = time.time() - info["time"]
                     print("received frame info", info)
-
+                    #frame = self.sr.upsample(frame)
                     try:
                         self.new_camera.schedule_frame(frame)
                     except:
