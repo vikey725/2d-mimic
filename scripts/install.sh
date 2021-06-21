@@ -21,8 +21,8 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda create -y -n $CONDA_ENV_NAME python=3.7
 conda activate $CONDA_ENV_NAME
 
-git clone https://github.com/vikey725/Also-Me.git
-pip install -r Also-Me/requirements.txt
+#git clone https://github.com/vikey725/Also-Me.git
+pip install -r requirements.txt
 
 sudo modprobe v4l2loopback video_nr=VIRT_CAM_ID card_label=VIRT_CAM_NAME exclusive_caps=1
 

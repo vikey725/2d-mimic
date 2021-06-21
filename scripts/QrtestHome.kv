@@ -2,6 +2,7 @@
 
     BoxLayout:
         orientation: "vertical"
+        height: 200
         id: uibox
 
         Label:
@@ -12,7 +13,7 @@
 
         BoxLayout:
             orientation: "horizontal"
-            height: 200
+            height: 200 
             size_hint_y: None
 
             OriginalCamera:
@@ -83,6 +84,7 @@
             Button:
                 id: butt_start
                 size_hint: 0.5,1
+                height: 50
                 text: "start"
                 on_press: root.dostart()
 

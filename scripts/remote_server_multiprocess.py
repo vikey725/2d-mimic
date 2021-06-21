@@ -1,3 +1,5 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from scripts.networking import SerializingContext, check_connection
 import cv2
 import numpy as np
@@ -16,12 +18,11 @@ from configs.color_config import ColorConfig
 from configs.model_config import detector, landmark_predictor
 from code.predictor import Predictor
 import torch
-import os
 
 PUT_TIMEOUT = 1 # s
 GET_TIMEOUT = 1 # s
 RECV_TIMEOUT = 1000 # ms
-QUEUE_SIZE = 100
+QUEUE_SIZE = 1
 
 class PredictorWorker():
     def __init__(self, in_port=None, out_port=None):
@@ -31,7 +32,7 @@ class PredictorWorker():
         self.worker_alive = mp.Value('i', 0)
 
         self.recv_process = mp.Process(target=self.recv_worker, args=(in_port, self.recv_queue, self.worker_alive))
-        self.predictor_process = mp.Process(target=self.predictor_worker, args=(self.recv_queue, self.send_queue, self.worker_alive))
+        self.predictor_process = mp.Process(target=self.predictor_worker, args=(self.recv_queue, self.send_queue, self.worker_alive, in_addr, out_addr))
         self.send_process = mp.Process(target=self.send_worker, args=(out_port, self.send_queue, self.worker_alive))
     
     def run(self):
@@ -61,13 +62,13 @@ class PredictorWorker():
 
                 try:
                     msg = socket.recv_data()
-                    print("data received")
+                    #print("data received")
                 except zmq.error.Again:
                     #print("recv timeout")
                     continue
 
                 try:
-                    recv_queue.put(msg)
+                    recv_queue.put(msg, block=False)
                 except queue.Full:
                     pass
                     #print('recv_queue full')
@@ -79,11 +80,11 @@ class PredictorWorker():
         print("recv_worker exit")
 
     @staticmethod
-    def predictor_worker(recv_queue, send_queue, worker_alive):
-        BATCH_SIZE = 3
+    def predictor_worker(recv_queue, send_queue, worker_alive, in_addr, out_addr):
+        BATCH_SIZE = 1
         vis_type = 0
         out_type = 0
-        background = 0
+        background = "0"
         h = 400
         w = 400
 
@@ -93,7 +94,10 @@ class PredictorWorker():
             background_img = cv2.resize(background_img, (h,w), interpolation = cv2.INTER_AREA)
 
             predictor = Predictor(visualizer_type=vis_type, output_type=out_type)
-
+            time.sleep(1)
+            print("---------------------------")
+            print("python -m scripts.remote_local -in "+in_addr+" -out "+out_addr)
+            print("---------------------------")
             while worker_alive.value:
 
                 try:
@@ -103,15 +107,17 @@ class PredictorWorker():
                         inputs_frames = []
                         info = None
                         for idx in range(BATCH_SIZE):
-                          info, frame = recv_queue.get()
-                          frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB", fastdct=True)
-                          infos.append(info)
-                          inputs_tensors.append({
+                            info, frame = recv_queue.get()
+                            frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB", fastdct=True)
+                            #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
+                            frame = cv2.resize(frame, (h,w))
+                            infos.append(info)
+                            inputs_tensors.append({
                               "image": torch.as_tensor(frame.astype("float32").transpose(2, 0, 1)),
                               "height": h,
                               "width": w
-                          })
-                          inputs_frames.append(frame)
+                            })
+                            inputs_frames.append(frame)
                     else:
                         continue
                 except queue.Empty:
@@ -120,10 +126,12 @@ class PredictorWorker():
                 s = time.time()
                 ### Predictor process ##
 
-                if info["vis_type"] != vis_type or info["out_type"] != out_type:
-                    predictor = Predictor(visualizer_type=info["vis_type"], output_type=info["out_type"])
+                if int(info["vis_type"]) != vis_type or int(info["out_type"]) != out_type:
+                    vis_type = int(info["vis_type"])
+                    out_type = int(info["out_type"])
+                    predictor = Predictor(visualizer_type=vis_type, output_type=out_type)
                 if info["background"] != background: 
-                    print(info["background"])
+                    background = info["background"]
                     background_img = cv2.imread("backgrounds/bg"+str(info["background"])+".jpg")
                     background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
                     background_img = cv2.resize(background_img, (h,w), interpolation = cv2.INTER_AREA)
@@ -132,13 +140,16 @@ class PredictorWorker():
 
                 frames = predictor.predict_batch(inputs_tensors, inputs_frames, background_img)
                 ### ---------------------##
-
                 for idx in range(len(frames)):
-                    frame = msgpack.packb(encode_jpeg(frames[idx], colorspace = "RGB", fastdct=True))
-                    info = infos[idx]
-                    info["pred_time"] = time.time() - s
                     try:
-                        send_queue.put((info, frame))
+                      frame = msgpack.packb(encode_jpeg(frames[idx], colorspace = "RGB", fastdct=True))
+                      #_,frame = cv2.imencode(".jpg", frames[idx], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+                      info = infos[idx]
+                      info["pred_time"] = time.time() - s
+                    except:
+                      continue
+                    try:
+                        send_queue.put((info, frame), block=False)
                     except queue.Full:
                         #print("send_queue full")
                         pass
@@ -183,8 +194,6 @@ if __name__ == '__main__':
     ngrok.set_auth_token(os.environ['NGROK_AUTH_TOKEN'])
     in_addr = ngrok.connect(in_port, "tcp").public_url
     out_addr = ngrok.connect(out_port, "tcp").public_url
-    print("---------------------------")
-    print("python -m scripts.remote_local -in "+in_addr+" -out "+out_addr)
-    print("---------------------------")
+    print("Server is starting .............. wait till you find the python common for local terminal below")
     worker = PredictorWorker(in_port=in_port, out_port=out_port)
     worker.run()

@@ -1,4 +1,6 @@
 from scripts.networking import SerializingContext, check_connection
+from scripts.utils import crop
+
 import os
 os.environ["KIVY_NO_ARGS"] = "1"
 import kivy.core.text
@@ -28,7 +30,7 @@ from simplejpeg import decode_jpeg, encode_jpeg
 PUT_TIMEOUT = 0.1 # s
 GET_TIMEOUT = 0.1 # s
 RECV_TIMEOUT = 1000 # ms
-QUEUE_SIZE = 10
+QUEUE_SIZE = 1
 default_cam_capture = None
 DEFAULT_CAM_ID = 0
 qrcam_vis_type = 0
@@ -41,7 +43,7 @@ class OriginalCamera(Image):
         super(OriginalCamera, self).__init__(**kwargs)
         self.capture = None
 
-    def start(self, capture, fps=10):
+    def start(self, capture, fps=30):
         self.capture = capture
         Clock.schedule_interval(self.update, 1.0 / fps)
 
@@ -82,8 +84,8 @@ class KivyCamera(Image):
 
         self.worker_alive = mp.Value('i', 0)
 
-        self.h = 400
-        self.w = 400
+        self.h = 640
+        self.w = 480
         self.new_camera = pyfakewebcam.FakeWebcam('/dev/video7',self.h,self.w)
 
         self.send_process = mp.Process(
@@ -98,7 +100,7 @@ class KivyCamera(Image):
         self._i_msg = -1
 
 
-    def start(self, capture, fps=10):
+    def start(self, capture, fps=30):
         self.capture = capture
         Clock.schedule_interval(self.update, 1.0 / fps)
 
@@ -122,11 +124,21 @@ class KivyCamera(Image):
             # w = size_of_fram[1]
             h = self.h
             w = self.w
+            frame_proportion = 0.9
+            frame_offset_x = 0
+            frame_offset_y = 0
             try:
 
+                #frame = frame[..., ::-1]
+                # frame_orig = frame.copy()
+                #frame, (frame_offset_x, frame_offset_y) = crop(frame, p=frame_proportion, offset_x=frame_offset_x, offset_y=frame_offset_y)
+                
+                #frame = cv2.resize(frame, (h, w))[..., :3]
                 frame = cv2.resize(frame, (h, w))
+                assert isinstance(frame, np.ndarray), 'Expected image'
+                #_, frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
                 frame = msgpack.packb(encode_jpeg(frame, colorspace="RGB", fastdct=True))
-
+                #print((frame.shape[1], frame.shape[0]))
                 global qrcam_vis_type
                 global qrcam_out_type
                 global qrcam_background
@@ -146,12 +158,16 @@ class KivyCamera(Image):
 
                 try:
                     info, frame = self.recv_queue.get(timeout=GET_TIMEOUT)
+                    #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
                     frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB", fastdct=True)
-                    
+                    frame = cv2.resize(frame, (h, w))
                     info["total_time"] = time.time() - info["time"]
                     print("received frame info", info)
 
-                    self.new_camera.schedule_frame(frame)
+                    try:
+                        self.new_camera.schedule_frame(frame)
+                    except:
+                        pass
 
                     ## Updating the UI camera view
                     texture = self.texture

@@ -52,7 +52,7 @@ numpy==1.20.3
 oauthlib==3.1.1
 omegaconf==2.1.0rc1
 opencv-contrib-python==4.5.2.54
-opencv-python==4.5.2.52
+opencv-python==3.4.5.20
 pafy==0.5.5
 pathspec==0.8.1
 Pillow==8.2.0
