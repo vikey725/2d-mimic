@@ -85,8 +85,8 @@ class PredictorWorker():
         vis_type = 0
         out_type = 0
         background = "0"
-        h = 300
-        w = 300
+        h = 400
+        w = 400
 
         try:
             background_img = cv2.imread("backgrounds/bg"+str(background)+".jpg")

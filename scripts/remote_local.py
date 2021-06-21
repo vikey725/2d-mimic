@@ -1,199 +1,348 @@
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from scripts.networking import SerializingContext, check_connection
+from scripts.utils import crop
+
+import os
+os.environ["KIVY_NO_ARGS"] = "1"
+import kivy.core.text
+from kivy.app import App
+from kivy.base import EventLoop
+from kivy.uix.image import Image
+from kivy.clock import Clock
+from kivy.graphics.texture import Texture
+from kivy.uix.boxlayout import BoxLayout
+from kivy.core.window import Window
+from kivy.lang import Builder
+
+import signal
+import multiprocessing as mp
+import queue
+import argparse
 import cv2
 import numpy as np
 import zmq
 import msgpack
 import msgpack_numpy as m
 m.patch()
-from simplejpeg import decode_jpeg, encode_jpeg
-from pyngrok import ngrok
-import queue
-import multiprocessing as mp
-import traceback
 import time
 import pyfakewebcam
-from configs.color_config import ColorConfig
-from configs.model_config import detector, landmark_predictor
-from code.predictor import Predictor
-import torch
+from simplejpeg import decode_jpeg, encode_jpeg
 
-PUT_TIMEOUT = 1 # s
-GET_TIMEOUT = 1 # s
+PUT_TIMEOUT = 0.1 # s
+GET_TIMEOUT = 0.1 # s
 RECV_TIMEOUT = 1000 # ms
 QUEUE_SIZE = 1
+default_cam_capture = None
+DEFAULT_CAM_ID = 2
+qrcam_vis_type = 0
+qrcam_out_type = 0
+qrcam_background = 0
 
-class PredictorWorker():
-    def __init__(self, in_port=None, out_port=None):
-        self.recv_queue = mp.Queue(QUEUE_SIZE)
+class OriginalCamera(Image):
+
+    def __init__(self, **kwargs):
+        super(OriginalCamera, self).__init__(**kwargs)
+        self.capture = None
+
+    def start(self, capture, fps=30):
+        self.capture = capture
+        Clock.schedule_interval(self.update, 1.0 / fps)
+
+    def stop(self):
+        Clock.unschedule_interval(self.update)
+        self.capture = None
+
+    def update(self, dt):
+        return_value, frame = self.capture.read()
+        if return_value:
+            texture = self.texture
+            w, h = frame.shape[1], frame.shape[0]
+            if not texture or texture.width != w or texture.height != h:
+                self.texture = texture = Texture.create(size=(w, h))
+                texture.flip_vertical()
+            texture.blit_buffer(frame.tobytes(), colorfmt='bgr')
+            self.canvas.ask_update()
+
+
+class KivyCamera(Image):
+
+    def __init__(self, **kwargs):
+        super(KivyCamera, self).__init__(**kwargs)
+        self.capture = None
+
+        global in_addr
+        global out_addr
+
+        self.in_addr = in_addr
+        self.out_addr = out_addr
+
+        self.vis_type = 0
+        self.out_type = 0
+        self.background = 0
+
         self.send_queue = mp.Queue(QUEUE_SIZE)
+        self.recv_queue = mp.Queue(QUEUE_SIZE)
 
         self.worker_alive = mp.Value('i', 0)
 
-        self.recv_process = mp.Process(target=self.recv_worker, args=(in_port, self.recv_queue, self.worker_alive))
-        self.predictor_process = mp.Process(target=self.predictor_worker, args=(self.recv_queue, self.send_queue, self.worker_alive, in_addr, out_addr))
-        self.send_process = mp.Process(target=self.send_worker, args=(out_port, self.send_queue, self.worker_alive))
-    
-    def run(self):
+        self.new_camera = pyfakewebcam.FakeWebcam('/dev/video7',640,480)
+
+        self.send_process = mp.Process(
+            target=self.send_worker,
+            args=(self.in_addr, self.send_queue, self.worker_alive),
+        )
+        self.recv_process = mp.Process(
+            target=self.recv_worker,
+            args=(self.out_addr, self.recv_queue, self.worker_alive)
+        )
+
+        self._i_msg = -1
+        self.sr = cv2.dnn_superres.DnnSuperResImpl_create()
+        self.sr.readModel("checkpoints/ESPCN_x4.pb")
+        self.sr.setModel("espcn",4)
+
+
+
+    def start(self, capture, fps=30):
+        self.capture = capture
+        Clock.schedule_interval(self.update, 1.0 / fps)
+
         self.worker_alive.value = 1
-
-        self.recv_process.start()
-        self.predictor_process.start()
         self.send_process.start()
+        self.recv_process.start()
 
-        try:
-            self.recv_process.join()
-            self.predictor_process.join()
-            self.send_process.join()
-        except KeyboardInterrupt:
-            pass
+    def stop(self):
+        Clock.unschedule_interval(self.update)
+        self.capture = None
 
-    @staticmethod
-    def recv_worker(port, recv_queue, worker_alive):
+    def update(self, dt):
 
-        ctx = SerializingContext()
-        socket = ctx.socket(zmq.PULL)
-        socket.bind(f"tcp://*:{port}")
-        socket.RCVTIMEO = RECV_TIMEOUT
+        if self.worker_alive.value == 1:
 
-        try:
-            while worker_alive.value:
+            _, frame = self.capture.read()
 
-                try:
-                    msg = socket.recv_data()
-                    #print("data received")
-                except zmq.error.Again:
-                    #print("recv timeout")
-                    continue
+            #size_of_fram = (frame.shape[1], frame.shape[0])
+            # size_of_fram = (400, 400)
+            # l = size_of_fram[0]
+            # w = size_of_fram[1]
+            h = 400
+            w = 400
+            frame_proportion = 0.9
+            frame_offset_x = 0
+            frame_offset_y = 0
+            try:
 
-                try:
-                    recv_queue.put(msg, block=False)
-                except queue.Full:
-                    pass
-                    #print('recv_queue full')
-
-        except KeyboardInterrupt:
-            print("recv_worker: user interrupt")
-
-        worker_alive.value = 0
-        print("recv_worker exit")
-
-    @staticmethod
-    def predictor_worker(recv_queue, send_queue, worker_alive, in_addr, out_addr):
-        BATCH_SIZE = 1
-        vis_type = 0
-        out_type = 0
-        background = "0"
-        h = 400
-        w = 400
-
-        try:
-            background_img = cv2.imread("backgrounds/bg"+str(background)+".jpg")
-            background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
-            background_img = cv2.resize(background_img, (h,w), interpolation = cv2.INTER_AREA)
-
-            predictor = Predictor(visualizer_type=vis_type, output_type=out_type)
-            time.sleep(1)
-            print("---------------------------")
-            print("python -m scripts.remote_local -in "+in_addr+" -out "+out_addr)
-            print("---------------------------")
-            while worker_alive.value:
-
-                try:
-                    if recv_queue.qsize() >= BATCH_SIZE:
-                        infos = []
-                        inputs_tensors = []
-                        inputs_frames = []
-                        info = None
-                        for idx in range(BATCH_SIZE):
-                            info, frame = recv_queue.get()
-                            frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB")
-                            #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
-                            frame = cv2.resize(frame, (h,w))
-                            infos.append(info)
-                            inputs_tensors.append({
-                              "image": torch.as_tensor(frame.astype("float32").transpose(2, 0, 1)),
-                              "height": h,
-                              "width": w
-                            })
-                            inputs_frames.append(frame)
-                    else:
-                        continue
-                except queue.Empty:
-                    continue
-
-                s = time.time()
-                ### Predictor process ##
-
-                if int(info["vis_type"]) != vis_type or int(info["out_type"]) != out_type:
-                    vis_type = int(info["vis_type"])
-                    out_type = int(info["out_type"])
-                    predictor = Predictor(visualizer_type=vis_type, output_type=out_type)
-                if info["background"] != background: 
-                    background = info["background"]
-                    background_img = cv2.imread("backgrounds/bg"+str(info["background"])+".jpg")
-                    background_img = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
-                    background_img = cv2.resize(background_img, (h,w), interpolation = cv2.INTER_AREA)
+                #frame = frame[..., ::-1]
+                # frame_orig = frame.copy()
+                #frame, (frame_offset_x, frame_offset_y) = crop(frame, p=frame_proportion, offset_x=frame_offset_x, offset_y=frame_offset_y)
                 
+                #frame = cv2.resize(frame, (h, w))[..., :3]
+                frame = cv2.resize(frame, (h, w))
+                assert isinstance(frame, np.ndarray), 'Expected image'
+                #_, frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                frame = msgpack.packb(encode_jpeg(frame, colorspace="RGB"))
+                #print((frame.shape[1], frame.shape[0]))
+                global qrcam_vis_type
+                global qrcam_out_type
+                global qrcam_background
+                self.vis_type = qrcam_vis_type
+                self.out_type = qrcam_out_type
+                self.background = qrcam_background
 
+                info = {"vis_type": self.vis_type,
+                        "out_type" : self.out_type,
+                        "background": self.background,
+                        "time": time.time()}
+                try:
+                    self.send_queue.put((info, frame))
 
-                frames = predictor.predict_batch(inputs_tensors, inputs_frames, background_img)
-                ### ---------------------##
-                for idx in range(len(frames)):
+                except queue.Full:
+                    print('send_queue is full')
+
+                try:
+                    info, frame = self.recv_queue.get(timeout=GET_TIMEOUT)
+                    #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
+                    frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB", fastdct=True)
+                    frame = cv2.resize(frame, (640, 480))
+                    info["total_time"] = time.time() - info["time"]
+                    print("received frame info", info)
+                    #frame = self.sr.upsample(frame)
                     try:
-                      frame = msgpack.packb(encode_jpeg(frames[idx], colorspace = "RGB", quality= 85))
-                      #_,frame = cv2.imencode(".jpg", frames[idx], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-                      info = infos[idx]
-                      info["pred_time"] = time.time() - s
+                        self.new_camera.schedule_frame(frame)
                     except:
-                      continue
-                    try:
-                        send_queue.put((info, frame), block=False)
-                    except queue.Full:
-                        #print("send_queue full")
                         pass
 
-        except KeyboardInterrupt:
-            print("predictor_worker: user interrupt")
-        except Exception as e:
-            print("predictor_worker error")
-            traceback.print_exc()
-    
-        worker_alive.value = 0
-        print("predictor_worker exit")
+                    ## Updating the UI camera view
+                    texture = self.texture
+                    w, h = frame.shape[1], frame.shape[0]
+                    if not texture or texture.width != w or texture.height != h:
+                        self.texture = texture = Texture.create(size=(w, h))
+                        texture.flip_vertical()
+                    texture.blit_buffer(frame.tobytes(), colorfmt='bgr')
+                    self.canvas.ask_update()
+
+
+                except queue.Empty:
+                    print('recv_queue is empty')
+
+            except KeyboardInterrupt:
+                self.mp_stop()
+                self.worker_alive.value = 0
+                self.stop()
+                print("program terminating --------------------------------------")
+
+
+    def mp_stop(self):
+        self.worker_alive.value = 0
+        print("join worker processes...")
+        self.send_process.join(timeout=5)
+        self.recv_process.join(timeout=5)
+        self.send_process.terminate()
+        self.recv_process.terminate()
+
+    def pack_message(self, msg):
+        return (msgpack.packb(msg))
+
+    def unpack_message(self, msg):
+        return (msgpack.unpackb(msg))
+
 
     @staticmethod
-    def send_worker(port, send_queue, worker_alive):
+    def send_worker(address, send_queue, worker_alive):
 
         ctx = SerializingContext()
-        socket = ctx.socket(zmq.PUSH)
-        socket.bind(f"tcp://*:{port}")
+        sender = ctx.socket(zmq.PUSH)
+        sender.connect(address)
 
         try:
             while worker_alive.value:
 
                 try:
                     msg = send_queue.get(timeout=GET_TIMEOUT)
+                    print("msg sent")
                 except queue.Empty:
-                    #print("send queue empty")
+                    print('send_queue is empty')
                     continue
 
-                socket.send_data(*msg)
+                sender.send_data(*msg)
 
         except KeyboardInterrupt:
-            print("predictor_worker: user interrupt")
+            print("send_worker: user interrupt")
+        finally:
+            worker_alive.value = 0
 
-        worker_alive.value = 0
-        print("send_worker exit")
+        sender.disconnect(address)
+        sender.close()
+        ctx.destroy()
+
+    @staticmethod
+    def recv_worker(address, recv_queue, worker_alive):
+
+        ctx = SerializingContext()
+        receiver = ctx.socket(zmq.PULL)
+        receiver.connect(address)
+        receiver.RCVTIMEO = RECV_TIMEOUT
+
+        try:
+            while worker_alive.value:
+
+                try:
+                    msg = receiver.recv_data()
+                except zmq.error.Again:
+                    continue
+
+                try:
+                    recv_queue.put(msg, timeout=PUT_TIMEOUT)
+                except queue.Full:
+                    print('recv_queue full')
+                    continue
+
+        except KeyboardInterrupt:
+            print("recv_worker: user interrupt")
+        finally:
+            worker_alive.value = 0
+
+        receiver.disconnect(address)
+        receiver.close()
+        ctx.destroy()
+
+
+def set_vistype_value(spinner, text):
+    print('The spinner  from Binder ', spinner, 'has text', text)
+    global qrcam_vis_type
+    qrcam_vis_type = text
+
+def set_outtype_value(spinner, text):
+    print('The spinner  from Binder ', spinner, 'has text', text)
+    global qrcam_out_type
+    qrcam_out_type = text
+
+def set_backimage_value(spinner, text):
+    print('The spinner  from Binder ', spinner, 'has text', text)
+    global qrcam_background
+    qrcam_background = text
+
+
+class QrtestHome(BoxLayout):
+
+    def init_qrtest(self):
+        self.ids.spinner_vistype.bind(text=set_vistype_value)
+        self.ids.spinner_outtype.bind(text=set_outtype_value)
+        self.ids.spinner_backimage.bind(text=set_backimage_value)
+
+
+    def dostart(self, *largs):
+        global default_cam_capture
+        global DEFAULT_CAM_ID
+
+        default_cam_capture = cv2.VideoCapture(DEFAULT_CAM_ID)
+
+        self.ids.qrcam.start(default_cam_capture)
+        self.ids.orig_camera.start(default_cam_capture)
+
+
+
+    def doexit(self):
+        global default_cam_capture
+        self.ids.qrcam.mp_stop()
+
+        pid = os.getpid()
+        os.kill(pid, signal.SIGTERM)
+
+        if default_cam_capture != None:
+            default_cam_capture.release()
+            default_cam_capture = None
+
+        EventLoop.close()
+
+
+class qrtestApp(App):
+
+    def build(self):
+        Window.clearcolor = (.4,.4,.4,1)
+        Window.size = (800, 600)
+        homeWin = QrtestHome()
+        homeWin.init_qrtest()
+        return homeWin
+
+    def on_stop(self):
+        global default_cam_capture
+
+        if default_cam_capture:
+            default_cam_capture.release()
+
+            default_cam_capture = None
+            also_me_cam_capture = None
 
 if __name__ == '__main__':
-    torch.multiprocessing.set_start_method('spawn')
-    in_port = 5555
-    out_port = 5556
-    ngrok.set_auth_token(os.environ['NGROK_AUTH_TOKEN'])
-    in_addr = ngrok.connect(in_port, "tcp").public_url
-    out_addr = ngrok.connect(out_port, "tcp").public_url
-    print("Server is starting .............. wait till you find the python common for local terminal below")
-    worker = PredictorWorker(in_port=in_port, out_port=out_port)
-    worker.run()
+
+    Builder.load_file('QrtestHome.kv')
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-in","--in_port", help="tcp://0.tcp.ngrok.io:5555")
+    ap.add_argument("-out","--out_port", help="tcp://0.tcp.ngrok.io:5556")
+    args = vars(ap.parse_args())
+    in_addr = args.get('in_port')
+    out_addr = args.get('out_port')
+
+    pid = os.getpid()
+    qrtestApp().run()
