@@ -16,6 +16,7 @@ cd v4l2loopback
 make && sudo make install
 sudo depmod -a
 cd ..
+cd ..
 
 source $(conda info --base)/etc/profile.d/conda.sh
 conda create -y -n $CONDA_ENV_NAME python=3.7
