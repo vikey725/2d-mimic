@@ -15,6 +15,14 @@ echo "--- Installing v4l2loopback (sudo privelege required)"
 cd v4l2loopback
 make && sudo make install
 sudo depmod -a
+
+# Delete sec-camera if exists
+sudo modprobe -r v4l2loopback
+
+# Create Camera
+sudo modprobe v4l2loopback video_nr=$VIRT_CAM_ID card_label="$VIRT_CAM_NAME" exclusive_caps=1
+
+
 cd ..
 cd ..
 
@@ -25,5 +33,4 @@ conda activate $CONDA_ENV_NAME
 #git clone https://github.com/vikey725/Also-Me.git
 pip install -r requirements.txt
 
-sudo modprobe v4l2loopback video_nr=VIRT_CAM_ID card_label=VIRT_CAM_NAME exclusive_caps=1
-
+echo "Done installation- client mode "
