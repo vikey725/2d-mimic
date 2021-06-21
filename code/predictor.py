@@ -4,6 +4,7 @@ import cv2
 
 from configs.model_config import cfg, visualizers
 from configs.shade_config import ShadeConfig
+from configs.model_config_batch import ModelConfig
 from detectron2.engine.defaults import DefaultPredictor
 import numpy as np
 import torch
@@ -157,6 +158,39 @@ class Predictor:
         out = self.lm_predict(img, out)
         return out
 
+    def predict_batch(self, images, org_imgs, bg_img):
+        """
+            Args:
+                images: list of dicts
+        """
+        outputs = []
+        with torch.no_grad():
+            predictions = ModelConfig.DP_MODEL(images)  # this particular line cause RAM keep increasing
+            for _idx, prediction in enumerate(predictions):
+                out = bg_img.copy()
+                instance = prediction["instances"]
+                result = ModelConfig.EXTRACTOR(instance)
+                if result[1] is None:
+                    return bg_img
+                bboxes = np.array(result[1].cpu())
+                for idx, densepose_chart_result in enumerate(result):
+                    if idx != 0:
+                        break
+                    if densepose_chart_result is None:
+                        return bg_img
+                    bbox = bboxes[0]
+                    x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+
+                    labels = densepose_chart_result[0].labels.cpu()
+                    labels = np.array(labels)
+                    for idx in range(24):
+                        mask = np.zeros((bg_img.shape[0], bg_img.shape[1])) != 0
+                        mask[y:y + h, x:x + w] += (labels == idx + 1)
+                        out[:, :, :][mask] = ColorConfig.COLORS[idx]
+                out = self.lm_predict(org_imgs[_idx], out)
+                outputs.append(out)
+        return outputs
+
 if __name__ == '__main__':
     img = cv2.imread("yg.jpg")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -164,8 +198,3 @@ if __name__ == '__main__':
     pred = Predictor()
     res = pred.lm_predict(img, img)
     cv2.imwrite("out_all.jpg", res)
-
-
-
-
-
