@@ -38,6 +38,8 @@ qrcam_vis_type = 0
 qrcam_out_type = 0
 qrcam_background = 0
 
+ALSO_ME_CAM_STATE = False
+
 class OriginalCamera(Image):
 
     def __init__(self, **kwargs):
@@ -127,52 +129,19 @@ class KivyCamera(Image):
             # w = size_of_fram[1]
             h = 400
             w = 400
-            frame_proportion = 0.9
-            frame_offset_x = 0
-            frame_offset_y = 0
+
+
             try:
+                if ALSO_ME_CAM_STATE is False:
+                    # Copy Orignal Fucntion
 
-                #frame = frame[..., ::-1]
-                # frame_orig = frame.copy()
-                #frame, (frame_offset_x, frame_offset_y) = crop(frame, p=frame_proportion, offset_x=frame_offset_x, offset_y=frame_offset_y)
-                
-                #frame = cv2.resize(frame, (h, w))[..., :3]
-                frame = cv2.resize(frame, (h, w))
-                assert isinstance(frame, np.ndarray), 'Expected image'
-                #_, frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-                frame = msgpack.packb(encode_jpeg(frame, colorspace="RGB"))
-                #print((frame.shape[1], frame.shape[0]))
-                global qrcam_vis_type
-                global qrcam_out_type
-                global qrcam_background
-                self.vis_type = qrcam_vis_type
-                self.out_type = qrcam_out_type
-                self.background = qrcam_background
-
-                info = {"vis_type": self.vis_type,
-                        "out_type" : self.out_type,
-                        "background": self.background,
-                        "time": time.time()}
-                try:
-                    self.send_queue.put((info, frame))
-
-                except queue.Full:
-                    print('send_queue is full')
-
-                try:
-                    info, frame = self.recv_queue.get(timeout=GET_TIMEOUT)
-                    #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
-                    frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB", fastdct=True)
                     frame = cv2.resize(frame, (640, 480))
-                    info["total_time"] = time.time() - info["time"]
-                    print("received frame info", info)
-                    #frame = self.sr.upsample(frame)
+
                     try:
                         self.new_camera.schedule_frame(frame)
                     except:
                         pass
 
-                    ## Updating the UI camera view
                     texture = self.texture
                     w, h = frame.shape[1], frame.shape[0]
                     if not texture or texture.width != w or texture.height != h:
@@ -181,20 +150,85 @@ class KivyCamera(Image):
                     texture.blit_buffer(frame.tobytes(), colorfmt='bgr')
                     self.canvas.ask_update()
 
+                    current_fps = 30
+                    current_latency = 0
 
-                except queue.Empty:
-                    print('recv_queue is empty')
+                    App.get_running_app().root.ids.fps.text = f"fps: {current_fps}"
+                    App.get_running_app().root.ids.latency.text = f"latency: {current_latency}"
+
+
+
+                else:
+                    # Perform AlsoMe Fucntion
+                    ################
+
+                    frame = cv2.resize(frame, (h, w))
+                    assert isinstance(frame, np.ndarray), 'Expected image'
+                    frame = msgpack.packb(encode_jpeg(frame, colorspace="RGB"))
+                    global qrcam_vis_type
+                    global qrcam_out_type
+                    global qrcam_background
+                    self.vis_type = qrcam_vis_type
+                    self.out_type = qrcam_out_type
+                    self.background = qrcam_background
+
+                    info = {"vis_type": self.vis_type,
+                            "out_type": self.out_type,
+                            "background": self.background,
+                            "time": time.time()}
+                    try:
+                        self.send_queue.put((info, frame))
+
+                    except queue.Full:
+                        pass
+                        #print('send_queue is full')
+
+                    try:
+                        info, frame = self.recv_queue.get(timeout=GET_TIMEOUT)
+                        frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB", fastdct=True)
+                        frame = cv2.resize(frame, (640, 480))
+                        info["total_time"] = time.time() - info["time"]
+                        #print("received frame info", info)
+                        try:
+                            self.new_camera.schedule_frame(frame)
+                        except:
+                            pass
+
+                        ## Updating the UI camera view
+                        texture = self.texture
+                        w, h = frame.shape[1], frame.shape[0]
+                        if not texture or texture.width != w or texture.height != h:
+                            self.texture = texture = Texture.create(size=(w, h))
+                            texture.flip_vertical()
+                        texture.blit_buffer(frame.tobytes(), colorfmt='bgr')
+                        self.canvas.ask_update()
+
+                        current_fps = 30
+                        current_latency =  round(info["total_time"], 2)
+
+                        App.get_running_app().root.ids.fps.text = f"fps: {current_fps}"
+                        App.get_running_app().root.ids.latency.text = f"latency: {current_latency}"
+
+                    except queue.Empty:
+                        #print('recv_queue is empty')
+                        pass
+
+
+                    ##################
 
             except KeyboardInterrupt:
                 self.mp_stop()
                 self.worker_alive.value = 0
                 self.stop()
                 print("program terminating --------------------------------------")
+            except Exception as e:
+                raise e
+
 
 
     def mp_stop(self):
         self.worker_alive.value = 0
-        print("join worker processes...")
+        #print("join worker processes...")
         self.send_process.join(timeout=5)
         self.recv_process.join(timeout=5)
         self.send_process.terminate()
@@ -219,9 +253,9 @@ class KivyCamera(Image):
 
                 try:
                     msg = send_queue.get(timeout=GET_TIMEOUT)
-                    print("msg sent")
+                    #print("msg sent")
                 except queue.Empty:
-                    print('send_queue is empty')
+                    #print('send_queue is empty')
                     continue
 
                 sender.send_data(*msg)
@@ -254,7 +288,7 @@ class KivyCamera(Image):
                 try:
                     recv_queue.put(msg, timeout=PUT_TIMEOUT)
                 except queue.Full:
-                    print('recv_queue full')
+                    #print('recv_queue full')
                     continue
 
         except KeyboardInterrupt:
@@ -268,28 +302,30 @@ class KivyCamera(Image):
 
 
 def set_vistype_value(spinner, text):
-    print('The spinner  from Binder ', spinner, 'has text', text)
+    #print('The spinner  from Binder ', spinner, 'has text', text)
     global qrcam_vis_type
     qrcam_vis_type = text
 
 def set_outtype_value(spinner, text):
-    print('The spinner  from Binder ', spinner, 'has text', text)
+    #print('The spinner  from Binder ', spinner, 'has text', text)
     global qrcam_out_type
     qrcam_out_type = text
 
 def set_backimage_value(spinner, text):
-    print('The spinner  from Binder ', spinner, 'has text', text)
+    #print('The spinner  from Binder ', spinner, 'has text', text)
     global qrcam_background
     qrcam_background = text
 
 
+def also_me_switch_callback(instance, value):
+    global ALSO_ME_CAM_STATE
+    ALSO_ME_CAM_STATE = value
+
 class QrtestHome(BoxLayout):
 
     def init_qrtest(self):
-        self.ids.spinner_vistype.bind(text=set_vistype_value)
         self.ids.spinner_outtype.bind(text=set_outtype_value)
         self.ids.spinner_backimage.bind(text=set_backimage_value)
-
 
     def dostart(self, *largs):
         global default_cam_capture
@@ -300,6 +336,12 @@ class QrtestHome(BoxLayout):
         self.ids.qrcam.start(default_cam_capture)
         self.ids.orig_camera.start(default_cam_capture)
 
+        global ALSO_ME_CAM_STATE
+        ALSO_ME_CAM_STATE = True
+        self.ids.switch.disabled = False
+        self.ids.switch.active = ALSO_ME_CAM_STATE
+
+        self.ids.switch.bind(active=also_me_switch_callback)
 
 
     def doexit(self):
@@ -316,7 +358,7 @@ class QrtestHome(BoxLayout):
         EventLoop.close()
 
 
-class qrtestApp(App):
+class AlsoMeApp(App):
 
     def build(self):
         Window.clearcolor = (.4,.4,.4,1)
@@ -346,4 +388,4 @@ if __name__ == '__main__':
     out_addr = args.get('out_port')
 
     pid = os.getpid()
-    qrtestApp().run()
+    AlsoMeApp().run()

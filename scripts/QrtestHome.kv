@@ -1,96 +1,121 @@
 <QrtestHome>:
-
     BoxLayout:
         orientation: "vertical"
-        height: 200
         id: uibox
-
-        Label:
-            id: label_about
-            height: 20
-            size_hint_y: None
-            text: 'Also Me Application'
 
         BoxLayout:
             orientation: "horizontal"
-            height: 200 
-            size_hint_y: None
+            id: titlebar
+            size_hint: 1, 0.20
 
-            OriginalCamera:
-                id: orig_camera
-
-            KivyCamera:
-                id: qrcam
-
+            Label:
+                id: label_about
+                size_hint: 0.70,1
+                text: 'Also Me'
+                italic: 1
+                halign: 'left'
+                valign: 'middle'
+                font_size: self.size[1] * 0.50
+                # https://www.w3.org/TR/SVG11/types.html#ColorKeywords
+                #color: .8,.9,0,1
 
             BoxLayout:
                 orientation: "vertical"
-                height: 200
+                id: statsbar
+                size_hint: 0.30, 1
 
-                BoxLayout:
-                    orientation: "horizontal"
-                    Label:
-                        height: 20
-                        size_hint_y: None
-                        text: "VisType"
+                Label:
+                    id: fps
+                    size_hint: 1,0.5
+                    text: 'fps: '
 
-                    Spinner:
-                        id: spinner_vistype
-                        size_hint: None, None
-                        size: 100, 44
-                        text: 'Vistype-0'
-                        values: 'Vistype-0', 'Vistype-1', 'Vistype-2', 'Vistype-3'
-                        #on-text: app.show_selected_value_custom(control="vis", text=self.text)
-                        #on_text:
-                        #    print("The spinner woow {} has text {}".format(self, self.text))
+                Label:
+                    id: latency
+                    size_hint: 1,0.5
+                    text: 'latency: '
 
-                BoxLayout:
-                    orientation: "horizontal"
-                    Label:
-                        height: 20
-                        size_hint_y: None
-                        text: "OutType"
-
-                    Spinner:
-                        id: spinner_outtype
-                        size_hint: None, None
-                        size: 100, 44
-                        text: 'Outtype-0'
-                        values: '0', '1'
-                        #on_text:
-                        #    print("The spinner {} has text {}".format(self, self.text))
-
-                BoxLayout:
-                    orientation: "horizontal"
-                    Label:
-                        height: 20
-                        size_hint_y: None
-                        text: "BackImage"
-
-                    Spinner:
-                        id: spinner_backimage
-                        size_hint: None, None
-                        size: 100, 44
-                        text: 'BackImage-0'
-                        values: '0', '1'
-                        #on_text:
-                        #    print("The spinner {} has text {}".format(self, self.text))
 
         BoxLayout:
             orientation: "horizontal"
-            height: 20
-            size_hint_y: None
+            size_hint: 1, 0.7
+
+            BoxLayout:
+                orientation: "vertical"
+                size_hint: 0.33,1
+                Label:
+                    text: 'Original Camera'
+                    size_hint: 1,0.2
+
+                OriginalCamera:
+                    id: orig_camera
+                    size_hint: 1,0.8
+
+            BoxLayout:
+                orientation: "vertical"
+                size_hint: 0.33,1
+
+                Label:
+                    text: 'Also Me Camera'
+                    size_hint: 1,0.2
+
+                KivyCamera:
+                    id: qrcam
+                    size_hint: 1,0.8
+
+            BoxLayout:
+                orientation: "vertical"
+                size_hint: 0.33,1
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint: 1,0.25
+                    Label:
+                        text: 'Avatar Status'
+
+                    Switch:
+                        id: switch
+                        disabled: True
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint: 1,0.25
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint: 1,0.25
+                    Label:
+                        text: "Style"
+
+                    Spinner:
+                        id: spinner_outtype
+                        text: '0'
+                        values: '0', '1'
+
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint: 1,0.25
+
+                    Label:
+                        text: "Background Image"
+
+                    Spinner:
+                        id: spinner_backimage
+                        text: '0'
+                        values: '0', '1'
+
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint: 1, 0.1
 
             Button:
                 id: butt_start
-                size_hint: 0.5,1
-                height: 50
                 text: "start"
+                size_hint: 0.4,1
                 on_press: root.dostart()
 
             Button:
                 id: butt_exit
                 text: "quit"
-                size_hint: 0.5,1
+                size_hint: 0.4,1
                 on_press: root.doexit()
 
