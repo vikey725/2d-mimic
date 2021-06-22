@@ -32,7 +32,8 @@ GET_TIMEOUT = 0.1 # s
 RECV_TIMEOUT = 1000 # ms
 QUEUE_SIZE = 1
 default_cam_capture = None
-DEFAULT_CAM_ID = 2
+
+DEFAULT_CAM_ID = 0
 qrcam_vis_type = 0
 qrcam_out_type = 0
 qrcam_background = 0
@@ -96,9 +97,9 @@ class KivyCamera(Image):
         )
 
         self._i_msg = -1
-        self.sr = cv2.dnn_superres.DnnSuperResImpl_create()
-        self.sr.readModel("checkpoints/ESPCN_x4.pb")
-        self.sr.setModel("espcn",4)
+        #self.sr = cv2.dnn_superres.DnnSuperResImpl_create()
+        #self.sr.readModel("checkpoints/ESPCN_x4.pb")
+        #self.sr.setModel("espcn",4)
 
 
 

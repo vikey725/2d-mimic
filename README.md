@@ -20,7 +20,7 @@ bash Miniconda3-latest-Linux-x86_64.sh
 ```bash
 git clone https://github.com/vikey725/Also-Me.git
 cd Also-Me
-bash scipts/install.sh
+bash scripts/install.sh
 ```
 3 . Run the command obtained from collab to start Also-Me
 
