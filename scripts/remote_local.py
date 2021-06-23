@@ -36,7 +36,7 @@ RECV_TIMEOUT = 1000 # ms
 QUEUE_SIZE = 1
 default_cam_capture = None
 
-DEFAULT_CAM_ID = 0
+DEFAULT_CAM_ID = 2
 qrcam_vis_type = 0
 qrcam_out_type = 0
 qrcam_background = 0
@@ -191,6 +191,7 @@ class KivyCamera(Image):
                         info, frame = self.recv_queue.get(timeout=GET_TIMEOUT)
                         frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB", fastdct=True)
                         frame = cv2.resize(frame, (640, 480))
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                         info["total_time"] = time.time() - info["time"]
                         #print("received frame info", info)
                         try:
