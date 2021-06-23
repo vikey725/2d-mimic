@@ -16,7 +16,7 @@ import traceback
 import time
 from code.predictor import Predictor
 import torch
-from configs.model_config import FRAME_W, FRAME_H
+from configs.size_config import FRAME_W, FRAME_H
 
 PUT_TIMEOUT = 1 # s
 GET_TIMEOUT = 1 # s

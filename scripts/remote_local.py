@@ -1,7 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 from scripts.networking import SerializingContext, check_connection
-from configs.model_config import FRAME_W, FRAME_H
+from configs.size_config import FRAME_W, FRAME_H
 
 import os
 os.environ["KIVY_NO_ARGS"] = "1"
