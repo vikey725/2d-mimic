@@ -67,10 +67,6 @@ pyfakewebcam==0.1.0
 Pygments==2.9.0
 pyngrok==5.0.5
 pyparsing==2.4.7
-PyQt5==5.15.4
-PyQt5-Qt5==5.15.2
-PyQt5-sip==12.9.0
-pyqtgraph==0.12.1
 pyscreenshot==3.0
 PySocks==1.7.1
 python-dateutil==2.8.1
