@@ -81,7 +81,7 @@ class Predictor:
 
                     x2, y2 = int((face[386][0] + face[374][0]) / 2), int((face[386][1] + face[374][1]) / 2)
                     right_eye_patch = img[y2 - 32:y2 + 32, x2 - 32: x2 + 32]
-                    right_eye_patch = cv2.resize(left_eye_patch, (64, 64), interpolation=cv2.INTER_AREA)
+                    right_eye_patch = cv2.resize(right_eye_patch, (64, 64), interpolation=cv2.INTER_AREA)
                     eye_gpu, iris_gpu = self.iris_predictor.predict_on_image(right_eye_patch)
                     iris = iris_gpu.cpu().numpy()
                     xs2, ys2 = iris[:, :, 0][0], iris[:, :, 1][0]
