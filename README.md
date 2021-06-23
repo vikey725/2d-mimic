@@ -22,10 +22,16 @@ git clone https://github.com/vikey725/Also-Me.git
 cd Also-Me
 bash scripts/install.sh
 ```
-3 . Run the command obtained from collab to start Also-Me
+
+3. Activate the Virtual environment
+```
+conda activate alsome
+```
+
+4 . Run the command obtained from collab to start Also-Me
 
 Example (This command will not work and you will need to use the similar command generated from collab)
-```bash
+```
 python -m scripts.remote_local -in tcp://6.tcp.ngrok.io:14732 -out tcp://6.tcp.ngrok.io:12054
 ```
 
