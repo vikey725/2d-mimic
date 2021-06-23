@@ -1,4 +1,6 @@
 import sys
+import warnings
+warnings.filterwarnings("ignore")
 from detectron2.config import get_cfg
 from typing import ClassVar, Dict
 
@@ -38,4 +40,7 @@ visualizers = [
     VISUALIZERS['dp_u'](),
     VISUALIZERS['dp_v']()
 ]
+
+# FRAME_H, FRAME_W = 640, 480
+FRAME_H, FRAME_W = 400, 400
 

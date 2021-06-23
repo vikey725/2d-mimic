@@ -108,7 +108,7 @@ class PredictorWorker():
                         info = None
                         for idx in range(BATCH_SIZE):
                             info, frame = recv_queue.get()
-                            frame = decode_jpeg(msgpack.unpackb(frame), colorspace = "RGB")
+                            frame = decode_jpeg(msgpack.unpackb(frame), colorspace="RGB")
                             #frame = cv2.imdecode(np.frombuffer(frame, dtype='uint8'), -1)
                             frame = cv2.resize(frame, (h,w))
                             infos.append(info)
