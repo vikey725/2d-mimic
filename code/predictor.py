@@ -1,5 +1,7 @@
 import sys
 import cv2
+import warnings
+warnings.filterwarnings("ignore")
 
 from configs.model_config import cfg, visualizers
 from configs.shade_config import ShadeConfig

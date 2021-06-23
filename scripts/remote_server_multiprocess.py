@@ -1,4 +1,6 @@
 import os
+import warnings
+warnings.filterwarnings("ignore")
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from scripts.networking import SerializingContext, check_connection
 import cv2
@@ -14,6 +16,7 @@ import traceback
 import time
 from code.predictor import Predictor
 import torch
+from configs.model_config import FRAME_W, FRAME_H
 
 PUT_TIMEOUT = 1 # s
 GET_TIMEOUT = 1 # s
@@ -81,8 +84,9 @@ class PredictorWorker():
         vis_type = 0
         out_type = 0
         background = "0"
-        h = 400
-        w = 400
+        # h = 400
+        # w = 400
+        w, h = FRAME_W, FRAME_H
 
         try:
             background_img = cv2.imread("backgrounds/bg"+str(background)+".jpg")
@@ -110,8 +114,8 @@ class PredictorWorker():
                             infos.append(info)
                             inputs_tensors.append({
                               "image": torch.as_tensor(frame.astype("float32").transpose(2, 0, 1)),
-                              "height": h,
-                              "width": w
+                              "height": w,
+                              "width": h
                             })
                             inputs_frames.append(frame)
                     else:
@@ -138,7 +142,7 @@ class PredictorWorker():
                 ### ---------------------##
                 for idx in range(len(frames)):
                     try:
-                      frame = msgpack.packb(encode_jpeg(frames[idx], colorspace = "RGB", quality= 85))
+                      frame = msgpack.packb(encode_jpeg(frames[idx], colorspace="BGR", quality= 85))
                       #_,frame = cv2.imencode(".jpg", frames[idx], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
                       info = infos[idx]
                       info["pred_time"] = time.time() - s

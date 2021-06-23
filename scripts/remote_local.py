@@ -1,4 +1,7 @@
+import warnings
+warnings.filterwarnings("ignore")
 from scripts.networking import SerializingContext, check_connection
+from configs.model_config import FRAME_W, FRAME_H
 
 import os
 os.environ["KIVY_NO_ARGS"] = "1"
@@ -127,8 +130,9 @@ class KivyCamera(Image):
             # size_of_fram = (400, 400)
             # l = size_of_fram[0]
             # w = size_of_fram[1]
-            h = 400
-            w = 400
+            # h = 400
+            # w = 400
+            w, h = FRAME_W, FRAME_H
 
 
             try:
@@ -200,7 +204,7 @@ class KivyCamera(Image):
                         if not texture or texture.width != w or texture.height != h:
                             self.texture = texture = Texture.create(size=(w, h))
                             texture.flip_vertical()
-                        texture.blit_buffer(frame.tobytes(), colorfmt='bgr')
+                        texture.blit_buffer(frame.tobytes(), colorfmt='rgb')
                         self.canvas.ask_update()
 
                         current_fps = 30
