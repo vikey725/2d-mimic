@@ -1,11 +1,9 @@
 from scripts.networking import SerializingContext, check_connection
-from scripts.utils import crop
 
 import os
 os.environ["KIVY_NO_ARGS"] = "1"
 os.environ["KCFG_KIVY_LOG_LEVEL"] = "error"
 
-import kivy.core.text
 from kivy.app import App
 from kivy.base import EventLoop
 from kivy.uix.image import Image

@@ -2,7 +2,6 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from scripts.networking import SerializingContext, check_connection
 import cv2
-import numpy as np
 import zmq
 import msgpack
 import msgpack_numpy as m
@@ -13,9 +12,6 @@ import queue
 import multiprocessing as mp
 import traceback
 import time
-import pyfakewebcam
-from configs.color_config import ColorConfig
-from configs.model_config import detector, landmark_predictor
 from code.predictor import Predictor
 import torch
 

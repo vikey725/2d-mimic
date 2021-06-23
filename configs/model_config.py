@@ -1,10 +1,9 @@
 import sys
 from detectron2.config import get_cfg
 from typing import ClassVar, Dict
-import dlib
 
 """
-configuration file for DensePose and dlib
+configuration file for DensePose
 """
 
 sys.path.append("../detectron2/projects/DensePose")
@@ -39,7 +38,4 @@ visualizers = [
     VISUALIZERS['dp_u'](),
     VISUALIZERS['dp_v']()
 ]
-
-detector = dlib.get_frontal_face_detector()
-landmark_predictor = dlib.shape_predictor("checkpoints/shape_predictor_68_face_landmarks.dat")
 
