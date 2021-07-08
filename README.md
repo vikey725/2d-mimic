@@ -1,6 +1,6 @@
 # Also-Me
 
-The repo contains source code for also-me project. Also-me creates virtual avatar like segmentation over the camera feed, so you can use in zoom, gmeet and elsewhere. 
+The repo contains source code for also-me project. Also-me creates customizable virtual avatar using pixel-wise segmentation over the camera feed, so you can use in zoom, gmeet and elsewhere.
 
 ## Setup
 ```
