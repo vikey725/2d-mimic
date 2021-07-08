@@ -1,6 +1,6 @@
 # Also-Me
 
-The repo contains source code for also-me project. Also-me creates customizable virtual avatar using pixel-wise segmentation over the camera feed, so you can use in zoom, gmeet and elsewhere. 
+The repo contains source code for also-me project. Also-me creates customizable virtual avatar using pixel-wise segmentation over the camera feed, so you can use in zoom, gmeet and elsewhere.
 
 ## Install & Run Instructions with colab GPU
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/vikey725/2d-mimic/blob/main/Also_Me_collab_server.ipynb)
